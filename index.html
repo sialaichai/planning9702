@@ -1,0 +1,981 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>9702 Planning Physics Viewer</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js?v=1.0.2"></script>
+  <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <style>
+    body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; overflow: hidden; }
+    #login-screen { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background-color: #e0e0e0; z-index: 10000; display: flex; justify-content: center; align-items: center; }
+    .login-box { background: white; padding: 40px; border-radius: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.15); text-align: center; width: 90%; max-width: 400px; }
+    .login-box h2 { margin-top: 0; color: #333; }
+    .login-box p { color: #666; margin-bottom: 20px; }
+    .login-box input { width: 100%; padding: 12px; margin: 10px 0; border: 1px solid #ccc; border-radius: 6px; font-size: 16px; box-sizing: border-box; outline: none; transition: border 0.3s; }
+    .login-box input:focus { border-color: #007bff; }
+    .login-box button { width: 100%; padding: 12px; background: #007bff; color: white; border: none; border-radius: 6px; font-size: 16px; font-weight: bold; cursor: pointer; transition: background 0.3s; }
+    .login-box button:hover { background: #0056b3; }
+    .error { color: #d9534f; margin-top: 15px; display: none; background: #f9d6d5; border: 1px solid #d9534f; padding: 10px; font-size: 13px; border-radius: 4px; text-align: left; }
+    .status { color: #0275d8; margin-top: 15px; font-size: 14px; font-weight: 500; display: block; }
+
+    #main-container { display: none; flex-direction: column; height: 100vh; }
+    #upper-panel { flex: 1; display: flex; flex-direction: column; min-height: 150px; }
+    #lower-panel { height: 300px; min-height: 100px; overflow-y: auto; background: white; display: flex; flex-direction: column; }
+    #dragger { height: 5px; background: #ccc; cursor: ns-resize; border-top: 1px solid #aaa; border-bottom: 1px solid #aaa; }
+
+    #controls { padding: 8px 10px; background: #f4f4f4; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; border-bottom: 1px solid #ddd; min-height: 44px; }
+    #pdf-viewer-container { flex: 1; background: #525659; position: relative; }
+    #pdf-viewer { width: 100%; height: 100%; border: none; }
+    #ms-viewer { width: 100%; height: 100%; border: none; display: none; }
+    #pdf-viewer-wrapper { display:flex; height:100%; }
+    #pdf-viewer-wrapper iframe { flex:1; height:100%; }
+
+    table { width: 100%; border-collapse: collapse; font-size: 14px; }
+    th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+    th { background-color: #f8f9fa; cursor: pointer; position: sticky; top: 0; user-select: none; }
+    th:hover { background-color: #e2e6ea; }
+    tbody tr:hover { background-color: #e2e6ea; cursor: pointer; }
+
+    .row-checkbox { cursor: pointer; width: 16px; height: 16px; }
+    .select-all-checkbox { cursor: pointer; width: 16px; height: 16px; }
+
+    .dropdown-check-container { position: relative; display: inline-block; }
+    .filter-button { padding: 6px 10px; border: 1px solid #ccc; border-radius: 4px; background: white; min-width: 50px; display: flex; justify-content: space-between; align-items: center; cursor: pointer; font-size: 13px; white-space: nowrap; }
+    #topic-filter-btn { min-width: 320px; }
+    .dropdown-panel { display: none; position: absolute; background: white; border: 1px solid #ccc; box-shadow: 0 4px 8px rgba(0,0,0,0.1); z-index: 100; min-width: 200px; padding: 10px; border-radius: 4px; }
+    .dropdown-list { max-height: 250px; overflow-y: auto; border-bottom: 1px solid #eee; margin-bottom: 10px; }
+    .dropdown-list label { display: block; padding: 4px 6px; cursor: pointer; font-size: 13px; }
+    .dropdown-list label:hover { background-color: #f4f4f4; }
+    .dropdown-list label input[type="checkbox"] { margin-right: 6px; }
+    .apply-button { width: 100%; padding: 6px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 13px; }
+    .apply-button:hover { background: #0056b3; }
+
+    .tools-dropdown { position: relative; display: inline-block; }
+    .tools-dropdown-btn { background-color: #6c757d; color: white; padding: 6px 10px; border: 1px solid #ccc; border-radius: 4px; font-weight: bold; font-size: 13px; cursor: pointer; display: flex; align-items: center; gap: 4px; min-width: 40px; justify-content: center; }
+    .tools-dropdown-btn:hover { background-color: #5a6268; }
+    .tools-dropdown-content { display: none; position: absolute; right: 0; background-color: #f9f9f9; min-width: 120px; box-shadow: 0px 8px 16px 0px rgba(0,0,0,0.2); z-index: 1; border-radius: 4px; border: 1px solid #ccc; padding: 4px 0; }
+    .tools-dropdown-content button { display: block; width: 100%; padding: 8px 14px; border: none; background: none; text-align: left; cursor: pointer; font-size: 13px; color: #333; font-weight: 500; border-bottom: 1px solid #eaeaea; }
+    .tools-dropdown-content button:last-child { border-bottom: none; }
+    .tools-dropdown-content button:hover { background-color: #e2e6ea; }
+    .tools-dropdown-content button .icon { margin-right: 8px; }
+    .tools-dropdown:hover .tools-dropdown-content { display: block; }
+
+    .nav-dropdown { position: relative; display: inline-block; }
+    .nav-dropdown-btn { background-color: #3437eb; color: white; padding: 6px 10px; border: 1px solid #ccc; border-radius: 4px; font-weight: bold; font-size: 13px; cursor: pointer; min-width: 40px; display: flex; align-items: center; justify-content: center; }
+    .nav-dropdown-btn:hover { background-color: #6365f7; }
+    .nav-dropdown-content { display: none; position: absolute; right: 0; background-color: #f9f9f9; min-width: 100px; box-shadow: 0px 8px 16px 0px rgba(0,0,0,0.2); z-index: 1; border-radius: 4px; border: 1px solid #ccc; }
+    .nav-dropdown-content a { color: black; padding: 8px 14px; text-decoration: none; display: block; font-weight: 500; font-size: 13px; border-bottom: 1px solid #eaeaea; }
+    .nav-dropdown-content a:last-child { border-bottom: none; }
+    .nav-dropdown-content a:hover { background-color: #e2e6ea; }
+    .nav-dropdown:hover .nav-dropdown-content { display: block; }
+
+    .logout-btn { background-color: #dc3545; color: white; padding: 6px 10px; border: 1px solid #ccc; border-radius: 4px; font-weight: bold; font-size: 13px; cursor: pointer; min-width: 60px; display: flex; align-items: center; justify-content: center; gap: 4px; transition: background-color 0.3s; margin-left: auto; display: none; }
+    .logout-btn:hover { background-color: #c82333; }
+
+    #file-count-display { font-weight: bold; color: #555; margin-left: 4px; font-size: 12px; white-space: nowrap; }
+
+    .ms-toggle { display: inline-flex; align-items: center; font-size: 13px; cursor: pointer; background: #e9ecef; padding: 4px 8px; border-radius: 4px; border: 1px solid #ccc; white-space: nowrap; }
+    .ms-toggle input { margin-right: 3px; cursor: pointer; }
+    .other-topics-toggle { display: inline-flex; align-items: center; font-size: 13px; cursor: pointer; white-space: nowrap; margin-left: 2px; }
+    .other-topics-toggle input { margin-right: 3px; cursor: pointer; }
+
+    #debug-console { position: fixed; bottom: 20px; right: 20px; background: rgba(0,0,0,0.9); color: #0f0; padding: 10px; border-radius: 5px; font-family: monospace; font-size: 11px; max-width: 500px; max-height: 300px; overflow-y: auto; z-index: 9999; display: none; white-space: pre-wrap; word-wrap: break-word; border: 1px solid #333; box-shadow: 0 4px 15px rgba(0,0,0,0.5); }
+    #debug-console.show { display: block; }
+    #debug-console .debug-header { color: #fff; font-weight: bold; border-bottom: 1px solid #444; padding-bottom: 5px; margin-bottom: 5px; display: flex; justify-content: space-between; align-items: center; }
+    #debug-console .debug-header .close-btn { cursor: pointer; color: #ff4444; background: none; border: none; font-size: 16px; padding: 0 5px; }
+    #debug-console .debug-header .close-btn:hover { color: #ff6666; }
+    #debug-console .debug-content { max-height: 250px; overflow-y: auto; }
+    .debug-hint { position: fixed; bottom: 10px; right: 10px; color: rgba(255,255,255,0.2); font-size: 10px; font-family: monospace; z-index: 9998; pointer-events: none; user-select: none; display: none; }
+    .debug-hint.show { display: block; }
+
+    #toast-container { position: fixed; bottom: 60px; right: 20px; z-index: 99998; display: flex; flex-direction: column-reverse; gap: 8px; max-width: 400px; pointer-events: none; }
+    .toast { padding: 12px 16px; border-radius: 6px; color: white; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; font-size: 13px; box-shadow: 0 4px 12px rgba(0,0,0,0.25); animation: slideUp 0.3s ease-out; display: flex; align-items: center; gap: 10px; pointer-events: auto; min-width: 200px; max-width: 380px; backdrop-filter: blur(4px); }
+    .toast-warning { background: rgba(240, 173, 78, 0.95); border-left: 4px solid #d58512; }
+    .toast-info { background: rgba(91, 192, 222, 0.95); border-left: 4px solid #2a9fd6; }
+    .toast-success { background: rgba(92, 184, 92, 0.95); border-left: 4px solid #398439; }
+    .toast-error { background: rgba(217, 83, 79, 0.95); border-left: 4px solid #b52b27; }
+    .toast-icon { font-size: 18px; flex-shrink: 0; }
+    .toast-message { flex: 1; word-break: break-word; line-height: 1.4; }
+    .toast-close { margin-left: auto; cursor: pointer; background: none; border: none; color: white; font-size: 16px; opacity: 0.7; padding: 0 5px; flex-shrink: 0; }
+    .toast-close:hover { opacity: 1; }
+    @keyframes slideUp { from { transform: translateY(20px) scale(0.95); opacity: 0; } to { transform: translateY(0) scale(1); opacity: 1; } }
+    @keyframes fadeOut { from { opacity: 1; transform: translateY(0) scale(1); } to { opacity: 0; transform: translateY(-10px) scale(0.95); } }
+    .toast-hiding { animation: fadeOut 0.25s ease-in forwards; }
+
+    #pagination {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 12px;
+      padding: 8px 12px;
+      background: #f8f9fa;
+      border-top: 1px solid #dee2e6;
+      font-size: 13px;
+      flex-wrap: wrap;
+      flex-shrink: 0;
+    }
+    #pagination button {
+      padding: 4px 14px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      background: white;
+      cursor: pointer;
+      font-size: 13px;
+      transition: background 0.2s;
+    }
+    #pagination button:hover:not(:disabled) { background: #e9ecef; }
+    #pagination button:disabled { opacity: 0.5; cursor: not-allowed; }
+    #pagination #page-info {
+      color: #495057;
+      font-weight: 500;
+      min-width: 120px;
+      text-align: center;
+    }
+
+    #data-table th:nth-child(1), #data-table td:nth-child(1) { width: 3%; }
+    #data-table th:nth-child(2), #data-table td:nth-child(2) { width: 25%; }
+    #data-table th:nth-child(3), #data-table td:nth-child(3) { width: 8%; }
+    #data-table th:nth-child(4), #data-table td:nth-child(4) { width: 30%; }
+    #data-table th:nth-child(5), #data-table td:nth-child(5) { width: 34%; }
+  </style>
+</head>
+<body>
+  <div id="login-screen">
+    <div class="login-box">
+      <h2>Restricted Access</h2>
+      <p>Enter password to unlock data</p>
+      <p>Clear Browser Cache for latest updates</p>
+      <input type="password" id="pass-input" placeholder="Password" onkeypress="handleEnter(event)">
+      <button onclick="unlock()">Login</button>
+      <div id="status-msg" class="status">Initializing System...</div>
+      <div id="error-msg" class="error"></div>
+    </div>
+  </div>
+
+  <div id="main-container">
+    <div id="upper-panel">
+      <div id="controls">
+        <div class="dropdown-check-container">
+          <button id="year-filter-btn" class="filter-button">Year (<span id="year-filter-count">0</span>)</button>
+          <div id="year-filter-panel" class="dropdown-panel">
+            <div id="year-filter-list" class="dropdown-list"></div>
+            <button id="year-filter-apply" class="apply-button">Apply</button>
+          </div>
+        </div>
+
+        <div class="dropdown-check-container">
+          <button id="topic-filter-btn" class="filter-button">Topic (<span id="topic-filter-count">0</span>)</button>
+          <div id="topic-filter-panel" class="dropdown-panel">
+            <div id="topic-filter-list" class="dropdown-list"></div>
+            <button id="topic-filter-apply" class="apply-button">Apply</button>
+          </div>
+        </div>
+
+        <label class="other-topics-toggle">
+          <input type="checkbox" id="include-other-topics" />
+          <span>Other</span>
+        </label>
+
+        <label class="ms-toggle">
+          <input type="checkbox" id="ms-toggle-checkbox"> MS
+        </label>
+
+        <div class="tools-dropdown">
+          <button class="tools-dropdown-btn">⬇️</button>
+          <div class="tools-dropdown-content">
+            <button id="generate-html-btn"><span class="icon">📄</span>HTML</button>
+            <button id="merge-pdf-btn"><span class="icon">📑</span>PDFs</button>
+            <button id="download-zip-btn"><span class="icon">📦</span>ZIP</button>
+          </div>
+        </div>
+        
+        <span id="file-count-display"></span>
+
+        <div class="nav-dropdown">
+          <button class="nav-dropdown-btn">Goto</button>
+          <div class="nav-dropdown-content">
+            <a href="https://sialaichai.github.io/physicsprelim/">Prelim</a>
+            <a href="https://sialaichai.github.io/physicsseab/">SEAB</a>
+            <a href="https://sialaichai.github.io/physynoptic/">Data</a>
+          </div>
+        </div>
+
+        <button id="logout-btn" class="logout-btn">🚪 Logout</button>
+      </div>
+      <div id="pdf-viewer-container">
+        <div id="pdf-viewer-wrapper">
+          <iframe id="pdf-viewer" src="" frameborder="0"></iframe>
+          <iframe id="ms-viewer" src="" frameborder="0" style="display:none; border-left:2px solid #444;"></iframe>
+        </div>
+      </div>
+    </div>
+    <div id="dragger"></div>
+    <div id="lower-panel">
+      <table id="data-table">
+        <thead>
+          <tr>
+            <th><input type="checkbox" id="select-all" class="select-all-checkbox" checked title="Select/Deselect all" /></th>
+            <th>Filename</th>
+            <th>Year</th>
+            <th>Main Topic</th>
+            <th>Other Topics</th>
+          </tr>
+        </thead>
+        <tbody id="data-table-body"></tbody>
+      </table>
+      <div id="pagination">
+        <button id="prev-page" disabled>◀ Previous</button>
+        <span id="page-info">Page 1 of 1</span>
+        <button id="next-page">Next ▶</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast-container"></div>
+
+  <div id="debug-console">
+    <div class="debug-header">
+      <span>🐞 Debug Console</span>
+      <button class="close-btn" id="debug-close">✕</button>
+    </div>
+    <div class="debug-content" id="debug-content"></div>
+  </div>
+  <div class="debug-hint" id="debug-hint">Press Ctrl+Shift+D for debug</div>
+
+  <script>
+    // ======================================================
+    // SIMPLIFIED PLANNING VIEWER - NO LEVEL/DIFFICULTY/QUESTION
+    // ======================================================
+    
+    const PAYLOAD_FILES = ['9702planningpayload.enc', '9702planningpayload1.enc'];
+    const UPDATES_FILE = 'updates.json';
+    let PDF_FOLDER = '';
+    let ENCRYPTED_TEXT = '';
+    let debugMessages = [];
+    let debugVisible = false;
+    let toastTimeout = null;
+    let debugEnabled = false;
+    let globalAllData = [];
+
+    const statusEl = document.getElementById('status-msg');
+    const errorEl = document.getElementById('error-msg');
+    const debugConsole = document.getElementById('debug-console');
+    const debugContent = document.getElementById('debug-content');
+    const debugClose = document.getElementById('debug-close');
+    const debugHint = document.getElementById('debug-hint');
+    const toastContainer = document.getElementById('toast-container');
+    const logoutBtn = document.getElementById('logout-btn');
+
+    document.addEventListener('keydown', (e) => {
+      if (!debugEnabled) return;
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'd' || e.key === 'D')) {
+        e.preventDefault();
+        toggleDebug();
+      }
+    });
+
+    if (debugClose) {
+      debugClose.addEventListener('click', () => {
+        if (debugVisible) toggleDebug();
+      });
+    }
+
+    if (logoutBtn) {
+      logoutBtn.addEventListener('click', function() {
+        sessionStorage.removeItem('physics_session_key');
+        sessionStorage.removeItem('physics_payload');
+        document.getElementById('pass-input').value = '';
+        document.getElementById('pass-input').classList.remove('error');
+        document.getElementById('main-container').style.display = 'none';
+        document.getElementById('login-screen').style.display = 'flex';
+        logoutBtn.style.display = 'none';
+        updateStatus('Logged out. Please login again.');
+        showToast('👋 Logged out successfully', 'info', 3000);
+      });
+    }
+
+    function toggleDebug() {
+      debugVisible = !debugVisible;
+      debugConsole.classList.toggle('show', debugVisible);
+      debugHint.classList.toggle('show', !debugVisible);
+      if (debugVisible) updateDebugContent();
+    }
+
+    function updateDebugContent() {
+      if (debugContent) {
+        debugContent.textContent = debugMessages.join('\n');
+        debugContent.scrollTop = debugContent.scrollHeight;
+      }
+    }
+
+    function showDebugHint() {
+      debugHint.classList.add('show');
+      setTimeout(() => debugHint.classList.remove('show'), 5000);
+    }
+
+    function debugLog(msg) {
+      const logMsg = `[${new Date().toLocaleTimeString()}] ${msg}`;
+      debugMessages.push(logMsg);
+      if (debugMessages.length > 100) debugMessages.shift();
+      if (debugVisible) updateDebugContent();
+      console.log(logMsg);
+    }
+
+    function showToast(message, type = 'info', duration = 4000) {
+      if (toastTimeout) { clearTimeout(toastTimeout); toastTimeout = null; }
+      const oldToasts = toastContainer.querySelectorAll('.toast');
+      oldToasts.forEach(t => { t.classList.add('toast-hiding'); setTimeout(() => t.remove(), 300); });
+      const toast = document.createElement('div');
+      toast.className = `toast toast-${type}`;
+      const icons = { warning: '⚠️', info: 'ℹ️', success: '✅', error: '❌' };
+      toast.innerHTML = `<span class="toast-icon">${icons[type] || 'ℹ️'}</span><span class="toast-message">${message}</span><button class="toast-close">&times;</button>`;
+      toast.querySelector('.toast-close').addEventListener('click', () => {
+        toast.classList.add('toast-hiding');
+        setTimeout(() => toast.remove(), 300);
+      });
+      toastContainer.appendChild(toast);
+      toastTimeout = setTimeout(() => {
+        if (toast.parentNode) {
+          toast.classList.add('toast-hiding');
+          setTimeout(() => toast.remove(), 300);
+        }
+        toastTimeout = null;
+      }, duration);
+    }
+
+    function logError(msg) {
+      errorEl.style.display = 'block';
+      errorEl.textContent = msg;
+      statusEl.style.display = 'none';
+      console.error(msg);
+      debugLog('ERROR: ' + msg);
+      showToast(msg, 'error', 6000);
+    }
+
+    function updateStatus(msg) {
+      statusEl.textContent = msg;
+      statusEl.style.display = 'block';
+      errorEl.style.display = 'none';
+      debugLog('STATUS: ' + msg);
+    }
+
+    function handleEnter(e) { if (e.key === 'Enter') unlock(); }
+
+    function getMSFilename(baseFilename) {
+      return baseFilename.replace(/\.pdf$/i, '') + '_ms.pdf';
+    }
+
+    async function checkMSFileExists(msUrl) {
+      try {
+        const res = await fetch(msUrl, { method: 'HEAD' });
+        return res.ok;
+      } catch { return false; }
+    }
+
+    updateStatus("Loading secure data...");
+
+    async function loadPayloadWithRetry(payloadFile, retries = 3) {
+      for (let attempt = 1; attempt <= retries; attempt++) {
+        try {
+          const res = await fetch(payloadFile);
+          if (res.status === 429) {
+            await new Promise(r => setTimeout(r, 2000));
+            continue;
+          }
+          if (res.status === 404) return null;
+          if (!res.ok) throw new Error(`Fetch Failed: ${res.status} ${res.statusText}`);
+          const text = await res.text();
+          if (!text || text.length === 0) throw new Error(`${payloadFile} is EMPTY.`);
+          return text;
+        } catch (err) {
+          if (attempt === retries) throw err;
+          await new Promise(r => setTimeout(r, 1000));
+        }
+      }
+    }
+
+    function decryptPayload(encryptedText, password) {
+      try {
+        const bytes = CryptoJS.AES.decrypt(encryptedText, password);
+        if (bytes.sigBytes < 0) return null;
+        const decryptedStr = bytes.toString(CryptoJS.enc.Utf8);
+        if (!decryptedStr) return null;
+        return JSON.parse(decryptedStr);
+      } catch { return null; }
+    }
+
+    function unlock(isAuto = false) {
+      const passInput = document.getElementById('pass-input');
+      const pass = passInput.value;
+      if (!pass) { if (!isAuto) logError("Please enter a password."); return; }
+
+      if (!isAuto) updateStatus("Decrypting...");
+      const loginBtn = document.querySelector('#login-screen button');
+      if (loginBtn) loginBtn.disabled = true;
+
+      const loadPromises = PAYLOAD_FILES.map(file =>
+        loadPayloadWithRetry(file)
+          .then(encryptedText => {
+            if (!encryptedText) {
+              debugLog(`ℹ️ ${file} not found, skipping...`);
+              return null;
+            }
+            const bundle = decryptPayload(encryptedText, pass);
+            if (bundle) {
+              debugLog(`✅ Successfully decrypted ${file}`);
+              return { file, bundle, encryptedText };
+            }
+            debugLog(`❌ Failed to decrypt ${file}`);
+            return null;
+          })
+          .catch(err => {
+            debugLog(`❌ Error loading ${file}: ${err.message}`);
+            return null;
+          })
+      );
+
+      Promise.all(loadPromises).then(results => {
+        const success = results.find(r => r !== null);
+        if (!success) {
+          if (isAuto) {
+            sessionStorage.removeItem('physics_session_key');
+            passInput.value = '';
+            updateStatus("Session expired. Please login.");
+          } else {
+            logError("Incorrect password. Please try again.");
+            passInput.classList.add('error');
+            passInput.value = '';
+          }
+          if (loginBtn) loginBtn.disabled = false;
+          return;
+        }
+
+        const { file, bundle, encryptedText } = success;
+        ENCRYPTED_TEXT = encryptedText;
+        sessionStorage.setItem('physics_session_key', pass);
+        sessionStorage.setItem('physics_payload', file);
+        PDF_FOLDER = bundle.secure_folder;
+        let mainData = bundle.data;
+        debugLog(`📁 PDF_FOLDER: ${PDF_FOLDER} (from ${file})`);
+
+        updateStatus("Checking for updates...");
+        fetch(UPDATES_FILE)
+          .then(res => {
+            if (res.status === 404) return [];
+            if (!res.ok) throw new Error("Update check failed");
+            return res.json();
+          })
+          .then(updateData => {
+            if (Array.isArray(updateData) && updateData.length > 0) {
+              debugLog(`Merging ${updateData.length} new items`);
+              mainData = mainData.concat(updateData);
+            }
+            globalAllData = mainData;
+            updateStatus("Launching app...");
+            finishAppLaunch(mainData);
+            if (loginBtn) loginBtn.disabled = false;
+            logoutBtn.style.display = 'flex';
+          })
+          .catch(err => {
+            debugLog("Update fetch error: " + err.message);
+            finishAppLaunch(mainData);
+            if (loginBtn) loginBtn.disabled = false;
+            logoutBtn.style.display = 'flex';
+          });
+      }).catch(err => {
+        if (isAuto) {
+          sessionStorage.removeItem('physics_session_key');
+          passInput.value = '';
+          updateStatus("Session expired. Please login.");
+        } else {
+          logError("Error: " + err.message);
+        }
+        if (loginBtn) loginBtn.disabled = false;
+      });
+    }
+
+    let globalAppData = null;
+    let appInstance = null;
+
+    function finishAppLaunch(mainData) {
+      showToast('Planning viewer ready', 'info', 3000);
+      globalAppData = mainData;
+      appInstance = startApp(mainData);
+      document.getElementById('login-screen').style.display = 'none';
+      document.getElementById('main-container').style.display = 'flex';
+      debugEnabled = true;
+      setTimeout(showDebugHint, 1500);
+    }
+
+    // ---- MAIN APP ----
+    function startApp(allData) {
+      let selectedTopics = new Set();
+      let selectedYears = new Set();
+
+      const selectedRowFilenames = new Set();
+      let currentPage = 1;
+      const rowsPerPage = 80;
+      let totalPages = 1;
+      let msEnabled = false;
+      let lastNotifiedFile = '';
+
+      const tableBody = document.getElementById('data-table-body');
+      const pdfViewer = document.getElementById('pdf-viewer');
+      const msViewer = document.getElementById('ms-viewer');
+      const fileCountDisplay = document.getElementById('file-count-display');
+      const msToggle = document.getElementById('ms-toggle-checkbox');
+      const selectAllCheckbox = document.getElementById('select-all');
+      const prevPageBtn = document.getElementById('prev-page');
+      const nextPageBtn = document.getElementById('next-page');
+      const pageInfoSpan = document.getElementById('page-info');
+
+      debugLog(`🚀 Starting app with ${allData.length} items`);
+      debugLog(`📁 PDF_FOLDER: ${PDF_FOLDER}`);
+
+      // Normalize: only filename, year, mainTopic, otherTopics
+      let processedData = allData.map(item => ({
+        filename: (item.filename || '').trim(),
+        year: (item.year || '').trim(),
+        mainTopic: (item.mainTopic || '').trim(),
+        otherTopics: Array.isArray(item.otherTopics)
+          ? item.otherTopics.map(t => t.trim()).filter(t => t !== '')
+          : []
+      }));
+
+      let currentFilteredData = [...processedData];
+      let currentSort = { column: 1, asc: false };
+      const baseHeaders = ['', 'Filename', 'Year', 'Main Topic', 'Other Topics'];
+      const headers = document.querySelectorAll('#data-table th');
+
+      headers.forEach((th, index) => {
+        th.addEventListener('click', () => {
+          if (index === 0) return;
+          if (currentSort.column === index) currentSort.asc = !currentSort.asc;
+          else { currentSort.column = index; currentSort.asc = false; }
+          currentPage = 1;
+          renderTable(currentFilteredData);
+        });
+      });
+
+      selectAllCheckbox.addEventListener('change', function() {
+        const isChecked = this.checked;
+        const visibleRows = tableBody.querySelectorAll('tr');
+        visibleRows.forEach(row => {
+          const cb = row.querySelector('.row-checkbox');
+          if (cb) {
+            cb.checked = isChecked;
+            const filename = row.getAttribute('data-filename');
+            if (isChecked) selectedRowFilenames.add(filename);
+            else selectedRowFilenames.delete(filename);
+          }
+        });
+      });
+
+      msToggle.addEventListener('change', function() {
+        msEnabled = this.checked;
+        if (!msEnabled) {
+          msViewer.src = '';
+          msViewer.style.display = 'none';
+          pdfViewer.style.flex = '1';
+          showToast('Mark scheme view disabled', 'info', 2000);
+          return;
+        }
+        const currentSrc = pdfViewer.src;
+        if (currentSrc) {
+          const fname = currentSrc.split('/').pop();
+          if (fname) loadMSFile(fname);
+        } else {
+          showToast('Please select a question paper first', 'info', 3000);
+        }
+      });
+
+      function loadMSFile(fname) {
+        const pdfBaseUrl = `https://sialaichai.github.io/planning9702/${PDF_FOLDER}/`;
+        const msFile = getMSFilename(fname);
+        const msUrl = pdfBaseUrl + msFile;
+
+        fetch(msUrl, { method: 'HEAD' }).then(res => {
+          if (res.ok) {
+            msViewer.src = msUrl;
+            msViewer.style.display = 'block';
+            pdfViewer.style.flex = '1';
+            msViewer.style.flex = '1';
+            showToast(`✅ Mark scheme loaded: ${msFile}`, 'success', 3000);
+            lastNotifiedFile = fname;
+          } else {
+            msViewer.src = '';
+            msViewer.style.display = 'none';
+            pdfViewer.style.flex = '1';
+            if (lastNotifiedFile !== fname) {
+              showToast(`⚠️ Mark scheme not available for: ${fname}`, 'warning', 4000);
+              lastNotifiedFile = fname;
+            }
+          }
+        }).catch(() => {
+          msViewer.src = '';
+          msViewer.style.display = 'none';
+          pdfViewer.style.flex = '1';
+        });
+      }
+
+      populateDropdowns(processedData);
+      setupEventListeners();
+      renderTable(currentFilteredData);
+
+      prevPageBtn.addEventListener('click', () => {
+        if (currentPage > 1) { currentPage--; renderTable(currentFilteredData); }
+      });
+      nextPageBtn.addEventListener('click', () => {
+        const total = Math.ceil(currentFilteredData.length / rowsPerPage);
+        if (currentPage < total) { currentPage++; renderTable(currentFilteredData); }
+      });
+
+      function populateDropdowns(data) {
+        const getUniques = (mapper, sorter) =>
+          [...new Set(data.map(mapper).flat().filter(Boolean))].sort(sorter);
+        const yearSort = (a, b) => {
+          const numA = parseInt(a.replace(/\D/g, '')) || 0;
+          const numB = parseInt(b.replace(/\D/g, '')) || 0;
+          return numA !== numB ? numB - numA : b.localeCompare(a);
+        };
+
+        const topics = getUniques(i => i.mainTopic.split(/[;,]/).map(s => s.trim()), undefined);
+        const years = getUniques(i => i.year, yearSort);
+
+        const setupList = (id, arr, cls) => {
+          const el = document.getElementById(id);
+          if (!el) return;
+          el.innerHTML = '';
+          arr.forEach(v => {
+            const l = document.createElement('label');
+            const c = document.createElement('input');
+            c.type = 'checkbox';
+            c.className = cls;
+            c.value = v;
+            l.appendChild(c);
+            l.appendChild(document.createTextNode(' ' + v));
+            el.appendChild(l);
+          });
+        };
+
+        setupList('topic-filter-list', topics, 'topic-checkbox');
+        setupList('year-filter-list', years, 'year-checkbox');
+      }
+
+      function setupEventListeners() {
+        const setup = (btnId, panelId, listId, applyId, set, cls) => {
+          const btn = document.getElementById(btnId),
+                panel = document.getElementById(panelId),
+                list = document.getElementById(listId),
+                apply = document.getElementById(applyId);
+          if (!btn) return;
+          btn.addEventListener('click', () => {
+            panel.style.display = panel.style.display === 'block' ? 'none' : 'block';
+          });
+          apply.addEventListener('click', () => {
+            set.clear();
+            list.querySelectorAll(`.${cls}:checked`).forEach(b => set.add(b.value));
+            const countSpan = btn.querySelector('span');
+            if (countSpan) countSpan.textContent = set.size;
+            panel.style.display = 'none';
+            applyFilters(processedData);
+          });
+        };
+        setup('year-filter-btn', 'year-filter-panel', 'year-filter-list', 'year-filter-apply', selectedYears, 'year-checkbox');
+        setup('topic-filter-btn', 'topic-filter-panel', 'topic-filter-list', 'topic-filter-apply', selectedTopics, 'topic-checkbox');
+
+        document.addEventListener('click', (e) => {
+          ['topic-filter-panel', 'year-filter-panel'].forEach(id => {
+            const p = document.getElementById(id);
+            if (p && !p.contains(e.target) && !e.target.closest('.filter-button'))
+              p.style.display = 'none';
+          });
+        });
+
+        document.getElementById('generate-html-btn').addEventListener('click', generateHTML);
+        document.getElementById('merge-pdf-btn').addEventListener('click', mergePDFs);
+        document.getElementById('download-zip-btn').addEventListener('click', downloadZIP);
+
+        function getSelectedRows() {
+          return currentFilteredData.filter(item => selectedRowFilenames.has(item.filename));
+        }
+
+        async function generateHTML() {
+          const rows = getSelectedRows();
+          if (rows.length === 0) {
+            showToast("No files selected.", 'warning', 4000);
+            return;
+          }
+          if (rows.length > 100 && !confirm(`Generate report for ${rows.length} files?`)) return;
+
+          const pdfBaseUrl = `https://sialaichai.github.io/planning9702/${PDF_FOLDER}/`;
+          let html = `<!DOCTYPE html><html><head><title>Report</title><style>body{font-family:sans-serif;margin:20px;background:#f4f4f4}h1{text-align:center}.pdf-section{margin-bottom:40px;background:#fff;padding:15px;border-radius:8px;box-shadow:0 2px 5px rgba(0,0,0,0.1)}.header-row{font-size:1.2em;margin-bottom:10px;border-bottom:1px solid #eee;padding-bottom:5px}embed{width:100%;height:800px;border:1px solid #ccc}.ms-embed{width:100%;height:800px;border:1px solid #aaa;margin-top:10px}</style></head><body><h1>Filtered PDF Report</h1>`;
+
+          let msFound = 0, msNotFound = 0;
+          for (const r of rows) {
+            let msUrl = '';
+            if (msEnabled) {
+              const msFile = getMSFilename(r.filename);
+              const fullMsUrl = pdfBaseUrl + msFile;
+              const exists = await checkMSFileExists(fullMsUrl);
+              if (exists) { msUrl = fullMsUrl; msFound++; } else msNotFound++;
+            }
+            html += `<div class='pdf-section'><div class='header-row'><b>${r.filename}</b> <span style="color:#666; font-size:0.9em;">(${r.mainTopic})</span></div><embed src='${pdfBaseUrl}${r.filename}' type='application/pdf' />${msUrl ? `<div style="margin-top:10px;font-weight:bold;color:#0066cc;">Mark Scheme</div><embed class="ms-embed" src='${msUrl}' type='application/pdf' />` : ''}</div>`;
+          }
+          html += '</body></html>';
+          const a = document.createElement('a');
+          a.href = URL.createObjectURL(new Blob([html], { type: 'text/html' }));
+          a.download = 'report.html';
+          a.click();
+          showToast(`✅ HTML report generated with ${rows.length} files`, 'success', 3000);
+        }
+
+        async function mergePDFs() {
+          const rows = getSelectedRows();
+          if (rows.length === 0) {
+            showToast("No files selected.", 'warning', 4000);
+            return;
+          }
+          if (rows.length > 50 && !confirm(`Merging ${rows.length} PDFs. Continue?`)) return;
+
+          const mergeBtn = document.getElementById('merge-pdf-btn');
+          mergeBtn.textContent = "⏳";
+          mergeBtn.disabled = true;
+
+          try {
+            const { PDFDocument, rgb, StandardFonts } = PDFLib;
+            const mergedPdf = await PDFDocument.create();
+            const font = await mergedPdf.embedFont(StandardFonts.HelveticaBold);
+            const pdfBaseUrl = `https://sialaichai.github.io/planning9702/${PDF_FOLDER}/`;
+
+            for (let i = 0; i < rows.length; i++) {
+              const r = rows[i];
+              mergeBtn.textContent = `${i+1}/${rows.length}`;
+              const res = await fetch(pdfBaseUrl + r.filename);
+              if (!res.ok) { console.error(`Failed: ${r.filename}`); continue; }
+              const bytes = await res.arrayBuffer();
+              const sourcePdf = await PDFDocument.load(bytes);
+              const { width } = sourcePdf.getPages()[0].getSize();
+              const banner = mergedPdf.addPage([width, 30]);
+              banner.drawText(`File: ${r.filename}`, { x: 15, y: 15, size: 12, font, color: rgb(1,0,0) });
+              const pages = await mergedPdf.copyPages(sourcePdf, sourcePdf.getPageIndices());
+              pages.forEach(p => mergedPdf.addPage(p));
+
+              if (msEnabled) {
+                const msFile = getMSFilename(r.filename);
+                const msRes = await fetch(pdfBaseUrl + msFile);
+                if (msRes.ok) {
+                  const msBytes = await msRes.arrayBuffer();
+                  const msPdf = await PDFDocument.load(msBytes);
+                  const msBanner = mergedPdf.addPage([width, 30]);
+                  msBanner.drawText(`Mark Scheme: ${msFile}`, { x: 15, y: 15, size: 12, font, color: rgb(0,0,1) });
+                  const msPages = await mergedPdf.copyPages(msPdf, msPdf.getPageIndices());
+                  msPages.forEach(p => mergedPdf.addPage(p));
+                }
+              }
+            }
+
+            mergeBtn.textContent = "💾";
+            const pdfBytes = await mergedPdf.save();
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(new Blob([pdfBytes], { type: 'application/pdf' }));
+            link.download = `merged_9702_${new Date().toISOString().slice(0,10)}.pdf`;
+            link.click();
+            showToast(`✅ Merged ${rows.length} files`, 'success', 3000);
+          } catch (err) {
+            console.error(err);
+            showToast(`Error merging: ${err.message}`, 'error', 5000);
+          } finally {
+            mergeBtn.textContent = '📑';
+            mergeBtn.disabled = false;
+          }
+        }
+
+        async function downloadZIP() {
+          const rows = getSelectedRows();
+          if (rows.length === 0) {
+            showToast("No files selected.", 'warning', 4000);
+            return;
+          }
+          if (rows.length > 100 && !confirm(`Zipping ${rows.length} files. Continue?`)) return;
+
+          const zipBtn = document.getElementById('download-zip-btn');
+          zipBtn.disabled = true;
+
+          try {
+            const zip = new JSZip();
+            const pdfBaseUrl = `https://sialaichai.github.io/planning9702/${PDF_FOLDER}/`;
+
+            for (let i = 0; i < rows.length; i++) {
+              const r = rows[i];
+              zipBtn.textContent = `${i+1}/${rows.length}`;
+              const res = await fetch(pdfBaseUrl + r.filename);
+              if (res.ok) zip.file(r.filename, await res.blob());
+
+              if (msEnabled) {
+                const msFile = getMSFilename(r.filename);
+                const msRes = await fetch(pdfBaseUrl + msFile);
+                if (msRes.ok) zip.file(msFile, await msRes.blob());
+              }
+            }
+
+            zipBtn.textContent = "📦";
+            const content = await zip.generateAsync({ type: "blob" });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(content);
+            link.download = `9702_planning_papers_${new Date().toISOString().slice(0,10)}.zip`;
+            link.click();
+            URL.revokeObjectURL(link.href);
+            showToast(`✅ Zipped ${rows.length} files`, 'success', 3000);
+          } catch (err) {
+            console.error(err);
+            showToast(`Error creating zip: ${err.message}`, 'error', 5000);
+          } finally {
+            zipBtn.textContent = '📦';
+            zipBtn.disabled = false;
+          }
+        }
+      }
+
+      function applyFilters(data) {
+        selectedRowFilenames.clear();
+        selectAllCheckbox.checked = false;
+        currentPage = 1;
+
+        let fd = [...data];
+
+        if (selectedTopics.size > 0) {
+          const includeOther = document.getElementById('include-other-topics').checked;
+          fd = fd.filter(item => {
+            if (selectedTopics.has(item.mainTopic)) return true;
+            if (includeOther && item.otherTopics.some(t => selectedTopics.has(t))) return true;
+            return false;
+          });
+        }
+
+        if (selectedYears.size > 0)
+          fd = fd.filter(i => selectedYears.has(i.year));
+
+        currentFilteredData = fd;
+        debugLog(`📊 After filters: ${currentFilteredData.length} items`);
+        renderTable(currentFilteredData);
+      }
+
+      function renderTable(data) {
+        const keys = ['', 'filename', 'year', 'mainTopic', 'otherTopics'];
+        const sortKey = keys[currentSort.column];
+        data.sort((a, b) => {
+          let valA = a[sortKey] || '';
+          let valB = b[sortKey] || '';
+          if (sortKey === 'year') {
+            valA = parseInt(valA.toString().replace(/\D/g, '')) || 0;
+            valB = parseInt(valB.toString().replace(/\D/g, '')) || 0;
+            return currentSort.asc ? valA - valB : valB - valA;
+          }
+          if (sortKey === 'otherTopics') {
+            valA = valA.join(', ');
+            valB = valB.join(', ');
+          }
+          return currentSort.asc
+            ? String(valA).localeCompare(String(valB), undefined, { numeric: true, sensitivity: 'base' })
+            : String(valB).localeCompare(String(valA), undefined, { numeric: true, sensitivity: 'base' });
+        });
+
+        totalPages = Math.max(1, Math.ceil(data.length / rowsPerPage));
+        if (currentPage > totalPages) currentPage = totalPages;
+        if (currentPage < 1) currentPage = 1;
+        const start = (currentPage - 1) * rowsPerPage;
+        const end = Math.min(start + rowsPerPage, data.length);
+        const pageData = data.slice(start, end);
+
+        prevPageBtn.disabled = (currentPage <= 1);
+        nextPageBtn.disabled = (currentPage >= totalPages);
+        pageInfoSpan.textContent = `Page ${currentPage} of ${totalPages} (${data.length} items)`;
+
+        const fragment = document.createDocumentFragment();
+        pageData.forEach(r => {
+          const tr = document.createElement('tr');
+          tr.setAttribute('data-filename', r.filename);
+          const isChecked = selectedRowFilenames.has(r.filename);
+
+          tr.innerHTML = `
+            <td><input type="checkbox" class="row-checkbox" ${isChecked ? 'checked' : ''} /></td>
+            <td>${r.filename}</td>
+            <td>${r.year}</td>
+            <td>${r.mainTopic}</td>
+            <td>${r.otherTopics.join(', ')}</td>
+          `;
+
+          const checkbox = tr.querySelector('.row-checkbox');
+          checkbox.addEventListener('change', function() {
+            if (this.checked) selectedRowFilenames.add(r.filename);
+            else selectedRowFilenames.delete(r.filename);
+            const visibleCheckboxes = tableBody.querySelectorAll('.row-checkbox');
+            const checkedVisible = tableBody.querySelectorAll('.row-checkbox:checked');
+            selectAllCheckbox.checked = (visibleCheckboxes.length === checkedVisible.length);
+          });
+
+          tr.addEventListener('click', (e) => {
+            if (e.target.type === 'checkbox') return;
+            const pdfBaseUrl = `https://sialaichai.github.io/planning9702/${PDF_FOLDER}/`;
+            pdfViewer.src = pdfBaseUrl + r.filename;
+            pdfViewer.style.flex = '1';
+            lastNotifiedFile = '';
+            if (msEnabled) {
+              loadMSFile(r.filename);
+            } else {
+              msViewer.src = '';
+              msViewer.style.display = 'none';
+              pdfViewer.style.flex = '1';
+            }
+          });
+          fragment.appendChild(tr);
+        });
+
+        tableBody.innerHTML = '';
+        tableBody.appendChild(fragment);
+
+        fileCountDisplay.textContent = `${data.length} files`;
+
+        const yearCount = new Set(data.map(i => i.year)).size;
+        const topicCount = new Set(data.map(i => i.mainTopic)).size;
+        document.querySelector('#year-filter-btn span').textContent = yearCount;
+        document.querySelector('#topic-filter-btn span').textContent = topicCount;
+      }
+
+      const dragger = document.getElementById('dragger');
+      const lowerPanel = document.getElementById('lower-panel');
+      if (dragger && lowerPanel) {
+        let isDragging = false;
+        dragger.addEventListener('mousedown', () => {
+          isDragging = true;
+          document.body.style.userSelect = 'none';
+          if (pdfViewer) pdfViewer.style.pointerEvents = 'none';
+        });
+        document.addEventListener('mouseup', () => {
+          isDragging = false;
+          document.body.style.userSelect = 'auto';
+          if (pdfViewer) pdfViewer.style.pointerEvents = 'auto';
+        });
+        document.addEventListener('mousemove', (e) => {
+          if (isDragging) lowerPanel.style.height = `${window.innerHeight - e.clientY - 2.5}px`;
+        });
+      }
+
+      return {
+        updateData: function(newData) {
+          processedData = newData;
+          currentFilteredData = [...processedData];
+          selectedRowFilenames.clear();
+          selectAllCheckbox.checked = false;
+          currentPage = 1;
+          populateDropdowns(processedData);
+          renderTable(currentFilteredData);
+        }
+      };
+    }
+  </script>
+</body>
+</html>
