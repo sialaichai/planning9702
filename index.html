@@ -258,7 +258,7 @@
     let toastTimeout = null;
     let debugEnabled = false;
     let globalAllData = [];
-
+    
     const statusEl = document.getElementById('status-msg');
     const errorEl = document.getElementById('error-msg');
     const debugConsole = document.getElementById('debug-console');
@@ -267,7 +267,16 @@
     const debugHint = document.getElementById('debug-hint');
     const toastContainer = document.getElementById('toast-container');
     const logoutBtn = document.getElementById('logout-btn');
-
+    
+    // ---- AUTO-LOGIN ON PAGE LOAD ----
+    document.addEventListener('DOMContentLoaded', function() {
+        const savedPass = localStorage.getItem('physics_session_key');
+        if (savedPass) {
+            updateStatus("Restoring Session...");
+            document.getElementById('pass-input').value = savedPass;
+            unlock(true);
+        }
+    });
     document.addEventListener('keydown', (e) => {
       if (!debugEnabled) return;
       if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'd' || e.key === 'D')) {
