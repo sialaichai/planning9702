@@ -270,7 +270,7 @@
     
     // ---- AUTO-LOGIN ON PAGE LOAD ----
     document.addEventListener('DOMContentLoaded', function() {
-        const savedPass = localStorage.getItem('physics_session_key');
+        const savedPass = sessionStorage.getItem('physics_session_key');
         if (savedPass) {
             updateStatus("Restoring Session...");
             document.getElementById('pass-input').value = savedPass;
